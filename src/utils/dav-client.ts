@@ -1,7 +1,7 @@
 import axios, { AxiosRequestConfig, AxiosResponse } from 'axios';
-import { DavServerConfig, DavRequestOptions, DavResponse } from '../types';
+import { DavServerConfig, WebDavRequest, WebDavResponse } from '../types';
 
-export class DavClient {
+export class WebDavClient {
   private config: DavServerConfig;
 
   constructor(config: DavServerConfig) {
@@ -24,7 +24,7 @@ export class DavClient {
         }
         break;
       case 'digest':
-        // Digest auth is more complex and would require multiple round trips
+        // Digest auth requires challenge-response, which is complex to implement
         // For now, we'll throw an error suggesting basic auth
         throw new Error('Digest authentication not yet implemented. Please use basic or bearer authentication.');
     }
@@ -32,57 +32,45 @@ export class DavClient {
     return headers;
   }
 
-  async makeRequest(options: DavRequestOptions): Promise<DavResponse> {
-    const url = new URL(options.path, this.config.baseUrl).toString();
+  async forwardRequest(request: WebDavRequest): Promise<WebDavResponse> {
+    // Ensure baseUrl ends with / and path doesn't start with / to avoid double slashes
+    const baseUrl = this.config.baseUrl.endsWith('/') ? this.config.baseUrl : this.config.baseUrl + '/';
+    const path = request.path.startsWith('/') ? request.path.substring(1) : request.path;
+    const url = baseUrl + path;
     
     const axiosConfig: AxiosRequestConfig = {
-      method: options.method,
+      method: request.method.toUpperCase(),
       url,
       headers: {
         ...this.buildAuthHeaders(),
-        ...options.headers,
+        ...request.headers,
       },
-      data: options.body,
+      data: request.body,
       validateStatus: () => true, // Don't throw on non-2xx status codes
     };
-
-    // Add depth header for PROPFIND requests
-    if (options.method === 'PROPFIND' && options.depth) {
-      axiosConfig.headers!['Depth'] = options.depth;
-    }
 
     try {
       const response: AxiosResponse = await axios(axiosConfig);
       
       return {
         status: response.status,
+        statusText: response.statusText,
         headers: response.headers as Record<string, string>,
         body: response.data || '',
       };
     } catch (error) {
-      throw new Error(`DAV request failed: ${error}`);
+      throw new Error(`WebDAV request failed: ${error}`);
     }
   }
 
   async testConnection(): Promise<boolean> {
     try {
-      const response = await this.makeRequest({
-        method: 'PROPFIND',
+      const response = await this.forwardRequest({
+        method: 'OPTIONS',
         path: '/',
-        depth: '0',
-        headers: {
-          'Content-Type': 'application/xml; charset=utf-8',
-        },
-        body: `<?xml version="1.0" encoding="utf-8" ?>
-<d:propfind xmlns:d="DAV:">
-  <d:prop>
-    <d:displayname />
-    <d:resourcetype />
-  </d:prop>
-</d:propfind>`,
       });
       
-      return response.status >= 200 && response.status < 300;
+      return response.status >= 200 && response.status < 400;
     } catch {
       return false;
     }

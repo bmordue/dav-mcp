@@ -1,12 +1,12 @@
 # dav-mcp
 
-An MCP (Model Context Protocol) server written in TypeScript that handles authentication and forwards DAV requests for querying CalDAV and CardDAV servers.
+An MCP (Model Context Protocol) server written in TypeScript that handles authentication and forwards WebDAV requests to DAV servers. This server acts as an authenticated proxy, allowing MCP clients to send properly-formed WebDAV requests while the server handles authentication.
 
 ## Features
 
-- **CalDAV Support**: List calendars, retrieve calendar events, create new events
-- **CardDAV Support**: List address books, retrieve contacts, search contacts, create new contacts
-- **Authentication**: Support for Basic and Bearer token authentication
+- **WebDAV Request Forwarding**: Forward any WebDAV request (PROPFIND, GET, PUT, DELETE, MKCOL, etc.) to configured servers
+- **Authentication Handling**: Support for Basic and Bearer token authentication
+- **Simple Design**: No parsing - just forward requests with authentication headers
 - **TypeScript**: Fully typed implementation with comprehensive error handling
 - **MCP Integration**: Compatible with MCP clients and Claude Desktop
 
@@ -36,15 +36,15 @@ The server can be used with any MCP-compatible client. For Claude Desktop, add t
 
 ### Available Tools
 
-#### 1. Configure DAV Server
-Configure a connection to a DAV server:
+#### 1. Configure WebDAV Server
+Configure a connection to a WebDAV server:
 
 ```json
 {
-  "name": "configure_dav_server",
+  "name": "configure_webdav_server",
   "arguments": {
     "name": "my-server",
-    "baseUrl": "https://caldav.example.com",
+    "baseUrl": "https://dav.example.com/remote.php/dav/",
     "username": "user@example.com",
     "password": "your-password",
     "authType": "basic"
@@ -52,148 +52,132 @@ Configure a connection to a DAV server:
 }
 ```
 
-#### 2. Test DAV Connection
+#### 2. Test WebDAV Connection
 Test if the configured server is accessible:
 
 ```json
 {
-  "name": "test_dav_connection",
+  "name": "test_webdav_connection",
   "arguments": {
     "serverName": "my-server"
   }
 }
 ```
 
-#### 3. List Calendars (CalDAV)
-List available calendars:
+#### 3. WebDAV Request
+Forward any WebDAV request to the configured server:
 
 ```json
 {
-  "name": "list_calendars",
-  "arguments": {
-    "serverName": "my-server"
-  }
-}
-```
-
-#### 4. Get Calendar Events (CalDAV)
-Retrieve events from a calendar:
-
-```json
-{
-  "name": "get_calendar_events",
+  "name": "webdav_request",
   "arguments": {
     "serverName": "my-server",
-    "calendarPath": "/calendars/user@example.com/personal/",
-    "startDate": "2023-12-01T00:00:00Z",
-    "endDate": "2023-12-31T23:59:59Z"
+    "method": "PROPFIND",
+    "path": "/calendars/user@example.com/personal/",
+    "headers": {
+      "Content-Type": "application/xml; charset=utf-8",
+      "Depth": "1"
+    },
+    "body": "<?xml version=\"1.0\" encoding=\"utf-8\" ?><d:propfind xmlns:d=\"DAV:\"><d:prop><d:displayname /><d:resourcetype /></d:prop></d:propfind>"
   }
 }
 ```
 
-#### 5. Create Calendar Event (CalDAV)
-Create a new calendar event:
+## Supported WebDAV Methods
 
+The server can forward any HTTP method, including WebDAV-specific methods:
+
+- **GET**: Retrieve resources
+- **PUT**: Create/update resources  
+- **DELETE**: Remove resources
+- **PROPFIND**: Get properties of resources
+- **PROPPATCH**: Modify properties of resources
+- **MKCOL**: Create collections (folders)
+- **COPY**: Copy resources
+- **MOVE**: Move resources
+- **LOCK**: Lock resources
+- **UNLOCK**: Unlock resources
+- **REPORT**: Extended queries (CalDAV/CardDAV)
+
+## Example WebDAV Operations
+
+### List Calendars (CalDAV)
 ```json
 {
-  "name": "create_calendar_event",
+  "name": "webdav_request",
   "arguments": {
     "serverName": "my-server",
-    "calendarPath": "/calendars/user@example.com/personal/",
-    "event": {
-      "uid": "unique-event-id",
-      "summary": "Team Meeting",
-      "start": "2023-12-15T10:00:00Z",
-      "end": "2023-12-15T11:00:00Z",
-      "description": "Weekly team sync",
-      "location": "Conference Room A",
-      "status": "CONFIRMED"
-    }
+    "method": "PROPFIND",
+    "path": "/calendars/user@example.com/",
+    "headers": {
+      "Content-Type": "application/xml; charset=utf-8",
+      "Depth": "1"
+    },
+    "body": "<?xml version=\"1.0\" encoding=\"utf-8\" ?><d:propfind xmlns:d=\"DAV:\" xmlns:c=\"urn:ietf:params:xml:ns:caldav\"><d:prop><d:displayname /><d:resourcetype /><c:calendar-description /></d:prop></d:propfind>"
   }
 }
 ```
 
-#### 6. List Address Books (CardDAV)
-List available address books:
-
+### Get Calendar Events
 ```json
 {
-  "name": "list_address_books",
+  "name": "webdav_request",
   "arguments": {
-    "serverName": "my-server"
+    "serverName": "my-server", 
+    "method": "REPORT",
+    "path": "/calendars/user@example.com/personal/",
+    "headers": {
+      "Content-Type": "application/xml; charset=utf-8",
+      "Depth": "1"
+    },
+    "body": "<?xml version=\"1.0\" encoding=\"utf-8\" ?><c:calendar-query xmlns:d=\"DAV:\" xmlns:c=\"urn:ietf:params:xml:ns:caldav\"><d:prop><d:getetag /><c:calendar-data /></d:prop><c:filter><c:comp-filter name=\"VCALENDAR\"><c:comp-filter name=\"VEVENT\"></c:comp-filter></c:comp-filter></c:filter></c:calendar-query>"
   }
 }
 ```
 
-#### 7. Get Contacts (CardDAV)
-Retrieve contacts from an address book:
-
+### List Address Books (CardDAV)
 ```json
 {
-  "name": "get_contacts",
-  "arguments": {
-    "serverName": "my-server",
-    "addressBookPath": "/addressbooks/user@example.com/contacts/"
-  }
-}
-```
-
-#### 8. Search Contacts (CardDAV)
-Search for contacts:
-
-```json
-{
-  "name": "search_contacts",
+  "name": "webdav_request",
   "arguments": {
     "serverName": "my-server",
-    "addressBookPath": "/addressbooks/user@example.com/contacts/",
-    "query": "John"
-  }
-}
-```
-
-#### 9. Create Contact (CardDAV)
-Create a new contact:
-
-```json
-{
-  "name": "create_contact",
-  "arguments": {
-    "serverName": "my-server",
-    "addressBookPath": "/addressbooks/user@example.com/contacts/",
-    "contact": {
-      "uid": "unique-contact-id",
-      "fn": "John Doe",
-      "email": "john@example.com",
-      "phone": "+1234567890",
-      "organization": "Example Corp"
-    }
+    "method": "PROPFIND", 
+    "path": "/addressbooks/user@example.com/",
+    "headers": {
+      "Content-Type": "application/xml; charset=utf-8",
+      "Depth": "1"
+    },
+    "body": "<?xml version=\"1.0\" encoding=\"utf-8\" ?><d:propfind xmlns:d=\"DAV:\" xmlns:card=\"urn:ietf:params:xml:ns:carddav\"><d:prop><d:displayname /><d:resourcetype /><card:addressbook-description /></d:prop></d:propfind>"
   }
 }
 ```
 
 ## Supported DAV Servers
 
-This MCP server has been designed to work with various DAV servers including:
+This MCP server works with any WebDAV-compatible server, including:
 
-- **CalDAV**: Google Calendar, Apple Calendar Server, Radicale, Nextcloud, ownCloud
-- **CardDAV**: Google Contacts, Apple Contacts Server, Radicale, Nextcloud, ownCloud
+- **Nextcloud**: Full CalDAV/CardDAV support
+- **ownCloud**: Calendar and contacts
+- **Radicale**: Lightweight CalDAV/CardDAV server
+- **Apple Calendar/Contacts Server**: macOS Server
+- **Google Calendar/Contacts**: Via DAV interface (with app passwords)
+- **Generic WebDAV**: Any RFC 4918 compliant server
 
 ## Authentication
 
 ### Basic Authentication
-Most commonly used with username and password:
+Username and password authentication:
 
 ```json
 {
   "authType": "basic",
-  "username": "your-username",
+  "username": "your-username", 
   "password": "your-password"
 }
 ```
 
 ### Bearer Token Authentication
-For servers that support OAuth or API tokens:
+For OAuth or API token authentication:
 
 ```json
 {
@@ -226,23 +210,23 @@ npm run lint
 
 ## Architecture
 
-The server is structured as follows:
+The server is designed as a simple authenticated proxy:
 
-- **`src/index.ts`**: Main MCP server implementation
+- **`src/index.ts`**: Main MCP server implementation with 3 tools
 - **`src/types/`**: TypeScript type definitions
-- **`src/utils/`**: Utility classes for DAV client and XML parsing
-- **`src/handlers/`**: CalDAV and CardDAV specific handlers
+- **`src/utils/dav-client.ts`**: WebDAV client for authenticated request forwarding
 - **`src/__tests__/`**: Test files
 
-## Error Handling
+## Design Philosophy
 
-The server includes comprehensive error handling for:
+This server follows the principle of simplicity:
 
-- Authentication failures
-- Network connectivity issues
-- Invalid DAV responses
-- Malformed calendar/contact data
-- Server configuration errors
+1. **No Parsing**: The server doesn't parse or interpret WebDAV responses
+2. **Raw Forwarding**: Requests are forwarded exactly as received from the client
+3. **Authentication Only**: The server only adds authentication headers
+4. **Client Responsibility**: MCP clients must send properly-formed WebDAV requests
+
+This approach provides maximum flexibility and compatibility with any WebDAV server while keeping the server implementation simple and reliable.
 
 ## Security Notes
 
