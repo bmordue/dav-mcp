@@ -41,7 +41,7 @@ describe('WebDavClient', () => {
         method: 'GET',
         url: 'https://example.com/dav/test.html',
         headers: {
-          Authorization: 'Basic dGVzdHVzZXI6dGVzdHBhc3M=', // base64 of testuser:testpass
+          Authorization: `Basic ${Buffer.from(`${config.username}:${config.password}`).toString('base64')}`,
         },
         data: undefined,
         validateStatus: expect.any(Function),
