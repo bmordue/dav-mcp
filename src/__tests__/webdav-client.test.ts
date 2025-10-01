@@ -81,7 +81,7 @@ describe('WebDavClient', () => {
         method: 'PROPFIND',
         url: 'https://example.com/dav/collection/',
         headers: {
-          Authorization: 'Basic dGVzdHVzZXI6dGVzdHBhc3M=',
+          Authorization: `Basic ${Buffer.from(`${config.username}:${config.password}`).toString('base64')}`,
           'Content-Type': 'application/xml',
           'Depth': '1',
         },
