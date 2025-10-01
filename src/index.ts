@@ -8,9 +8,9 @@ import {
   ListToolsRequestSchema,
   McpError,
 } from '@modelcontextprotocol/sdk/types.js';
-import { CalDavHandler } from './handlers/caldav-handler.js';
-import { CardDavHandler } from './handlers/carddav-handler.js';
-import { DavServerConfig } from './types/index.js';
+import { CalDavHandler } from './handlers/caldav-handler';
+import { CardDavHandler } from './handlers/carddav-handler';
+import { DavServerConfig } from './types/index';
 
 interface ServerState {
   configs: Map<string, DavServerConfig>;
