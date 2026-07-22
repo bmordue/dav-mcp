@@ -3,7 +3,7 @@ export interface DavServerConfig {
   baseUrl: string;
   username?: string;
   password?: string;
-  authType: 'basic' | 'bearer';
+  authType: 'basic' | 'bearer' | 'digest';
   token?: string;
 }
 
